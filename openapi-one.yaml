@@ -1,0 +1,2230 @@
+---
+openapi: 3.0.3
+info:
+  title: Axur One API
+  description: | 
+
+    # Introduction
+    **Axur One** provides an HTTP API that allows external scripts and applications to access and manipulate tickets programmatically. 
+    This document describes the currently supported API operations.
+    
+    # Authentication
+    
+    Each API request (except user session creation) must be authenticated using the Bearer scheme with a valid token. 
+    Authentication tokens may be obtained by creating a new user session (see [Create user session](#operation/createUserSession) operation) 
+    with valid credentials (email and password). Tokens may be used for multiple requests and expire after 1 hour. 
+    It is recommended to obtain a new token regularly to avoid expiration issues.
+    
+    The following HTTP header is required for all authenticated requests:
+    
+        Authorization: Bearer <token>
+    
+    **Important:** The placeholder `<token>` in descriptions and examples that follow must be replaced by a valid authentication token.
+    
+    # Permission levels
+    
+    Depending on the authenticated user's permission level, some operations may be forbidden.
+    
+    - **Read-only users** are not allowed to perform any state-changing operations, such as adding comments or executing lifecycle actions. *Read-only users* may be restricted to certain brands and ticket types.
+    - **Practitioners** have all permissions of *read-only users* and additionaly are allowed to perform basic state-changing operations, 
+    such as discarding threats and creating tickets. *Practitioners* may be restricted to certain brands and ticket types.
+    - **Experts** have all permissions of *practitioners* and additionaly are allowed to perform advanced state-changing operations, such as requesting
+    OneShots and Takedowns. *Experts* may be restricted to certain brands and ticket types.
+    - **Managers** have all permissions of *experts* and additionaly are allowed to manage team users and view their activity history. *Managers* always have access to all brands and ticket types.
+  
+  version: 1.0.0
+  contact: {}
+servers:
+  - url: "https://api.axur.com"
+paths:
+  /gateway/1.0/api/identity/session:
+    post:
+      tags:
+        - Session management
+      summary: Create user session
+      description: |
+        Creates a new user session and returns the associated authentication token. 
+        
+        This operation does not support two-factor authentication (2FA). Users who have enabled 2FA will have to disable it before being able to perform this operation.
+
+      operationId: createUserSession
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: email@acme.com
+                password:
+                  type: string
+                  example: mysecretpassword
+            example:
+              email: email@acme.com
+              password: mysecretpassword
+      responses:
+        "200":
+          description: Create user session
+          headers:
+            Access-Control-Allow-Credentials:
+              schema:
+                type: string
+                example: "true"
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+                example: "OXREF-TOKEN, Authorization, Content-Type"
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+                example: "GET, POST, PUT, OPTIONS, PATCH, DELETE"
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+                example: "*"
+            Connection:
+              schema:
+                type: string
+                example: keep-alive
+            Content-Length:
+              schema:
+                type: string
+                example: "551"
+            Date:
+              schema:
+                type: string
+                example: "Mon, 01 Oct 2018 20:36:43 GMT"
+            ETag:
+              schema:
+                type: string
+                example: "W/\"227-MtON1e69s/wbVHCvhuR6Uyjcqmg\""
+            X-Powered-By:
+              schema:
+                type: string
+                example: Express
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    example: "<token>"
+              examples:
+                Create user session:
+                  value:
+                    token: "<token>"
+  /gateway/1.0/api/tickets-search/search/tickets:
+    get:
+      tags:
+        - Search operations
+      summary: Retrieve query results
+      description: "Returns one page of results associated with a previously created query (specified by the given identifier `q`) and metadata to navigate the result set."
+      operationId: retrieveQueryResults
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+            example: bYo5oWUBThFJT5NBqQsU
+          description: Identifier of a previously created query (required)
+        - name: page
+          in: query
+          schema:
+            type: string
+            example: "1"
+          description: "Page index (optional, defaults to 1)"
+        - name: pageSize
+          in: query
+          schema:
+            type: string
+            example: "100"
+          description: "Number of results per page (optional, defaults to 50; limited to 5000)"
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            example: creationDate
+          description: "Field used for sorting results (optional, defaults to `creationDate`)"
+        - name: order
+          in: query
+          schema:
+            type: string
+            example: desc
+          description: "Sorting order (optional, defaults to `desc`; valid values are `asc` and `desc`)"
+      responses:
+        "200":
+          description: /search/tickets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  metadata:
+                    type: object
+                    properties:
+                      offset:
+                        type: number
+                        example: 0
+                      page:
+                        type: number
+                        example: 1
+                      perPage:
+                        type: number
+                        example: 50
+                      total:
+                        type: number
+                        example: 2
+                  tickets:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: number
+                          example: 1
+                        key:
+                          type: string
+                          example: TEST-1
+                    example:
+                      - id: 1
+                        key: TEST-1
+                      - id: 2
+                        key: TEST-2
+              examples:
+                /search/tickets:
+                  value:
+                    metadata:
+                      offset: 0
+                      page: 1
+                      perPage: 50
+                      total: 2
+                    tickets:
+                      - id: 1
+                        key: TEST-1
+                      - id: 2
+                        key: TEST-2
+    post:
+      tags:
+        - Search operations
+      summary: Create query
+      description: Creates a query with the object specified in the request body. Returns the created query identifier to be used to retrieve the results (see *Retrieve query results* operation).
+      operationId: createQuery
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      field:
+                        type: string
+                        example: status
+                      value:
+                        example: incident
+                        anyOf:
+                          - type: string
+                            example: incident
+                          - type: array
+                            items:
+                              type: object
+                              properties:
+                                exists:
+                                  type: boolean
+                                  example: true
+                                id:
+                                  type: number
+                                  example: 2
+                                startDate:
+                                  type: number
+                                  example: 1535943600000
+                            example:
+                              - exists: true
+                                id: 2
+                                startDate: 1535943600000
+                  example:
+                    - field: status
+                      value: incident
+                    - field: tags
+                      value:
+                        - exists: true
+                          id: 2
+                          startDate: 1535943600000
+            example:
+              query:
+                - field: status
+                  value: incident
+                - field: tags
+                  value:
+                    - exists: true
+                      id: 2
+                      startDate: 1535943600000
+      responses:
+        "200":
+          description: /search
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  queryId:
+                    type: string
+                    example: bYo5oWUBThFJT5NBqQsU
+              examples:
+                /search:
+                  value:
+                    queryId: bYo5oWUBThFJT5NBqQsU
+  /gateway/1.0/api/tickets/tags:
+    get:
+      tags:
+        - Ticket operations
+      summary: Retrieve tags
+      description: Returns all user-created tags.
+      operationId: retrieveTags
+      responses:
+        "200":
+          description: Retrieve tags
+          headers:
+            Access-Control-Allow-Credentials:
+              schema:
+                type: string
+                example: "true"
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+                example: "OXREF-TOKEN, Authorization, Content-Type"
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+                example: "GET, POST, PUT, OPTIONS, PATCH, DELETE"
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+                example: "*"
+            Connection:
+              schema:
+                type: string
+                example: keep-alive
+            Content-Length:
+              schema:
+                type: string
+                example: "9837"
+            Date:
+              schema:
+                type: string
+                example: "Tue, 02 Oct 2018 20:09:14 GMT"
+            ETag:
+              schema:
+                type: string
+                example: "W/\"266d-NMvJEHQzhUOxE9AS/mZqemUYc7Q\""
+            X-Powered-By:
+              schema:
+                type: string
+                example: Express
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    customer:
+                      type: string
+                      example: TEST
+                    id:
+                      type: number
+                      example: 123456
+                    label:
+                      type: string
+                      example: first-tag
+                example:
+                  - customer: TEST
+                    id: 123456
+                    label: first-tag
+                  - customer: TEST
+                    id: 654321
+                    label: second-tag
+              examples:
+                Retrieve tags:
+                  value:
+                    - customer: TEST
+                      id: 123456
+                      label: first-tag
+                    - customer: TEST
+                      id: 654321
+                      label: second-tag
+  /gateway/1.0/api/tickets/tickets:
+    get:
+      tags:
+        - Ticket operations
+      summary: Retrieve multiple ticket details
+      description: "Returns information about multiple tickets and their current detections. Fields `comments`, `events` and `links` are not included (*Retrieve single ticket details* operation must be used to access these fields)."
+      operationId: retrieveMultipleTicketDetails
+      parameters:
+        - name: keys
+          in: query
+          schema:
+            type: string
+            example: "TEST-1,TEST-2"
+      responses:
+        "200":
+          description: /tickets
+          headers:
+            Date:
+              schema:
+                type: string
+                example: "Mon, 03 Sep 2018 19:38:47 GMT"
+            Server:
+              schema:
+                type: string
+                example: Jetty(9.4.4.v20170414)
+            Transfer-Encoding:
+              schema:
+                type: string
+                example: chunked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        actions:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              key:
+                                type: string
+                                example: transition_incident
+                          example:
+                            - key: transition_incident
+                            - key: transition_quarantine
+                            - key: resolution_discarded
+                        attachments:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              date:
+                                type: number
+                                example: 1536005279435
+                              metadata:
+                                type: object
+                                properties:
+                                  byteSize:
+                                    type: number
+                                    example: 46438
+                                  contentType:
+                                    type: string
+                                    example: application/octet-stream
+                              name:
+                                type: string
+                                example: html_210348971241_1
+                              url:
+                                type: string
+                                example: "https://s3.amazonaws.com/axur-attachment-files-prod/1/html_210348971241_1"
+                          example:
+                            - date: 1536005279435
+                              metadata:
+                                byteSize: 46438
+                                contentType: application/octet-stream
+                              name: html_210348971241_1
+                              url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/html_210348971241_1"
+                            - date: 1536005279435
+                              metadata:
+                                byteSize: 1510731
+                                contentType: image/png
+                              name: screenShot_www.phishing.org_1.png
+                              url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/screenShot_224323426575_1.png"
+                            - date: 1536005279435
+                              metadata:
+                                byteSize: 5055
+                                contentType: text/plain
+                              name: whois_linux_phishing.org_1.txt
+                              url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/whois_linux_023478623464_1.txt"
+                        basic:
+                          type: object
+                          properties:
+                            brand:
+                              type: string
+                              example: ACME
+                            customer:
+                              type: string
+                              example: TEST
+                            detectionDate:
+                              type: number
+                              example: 1536005278565
+                            id:
+                              type: number
+                              example: 1
+                            key:
+                              type: string
+                              example: TEST-1
+                            reference:
+                              type: object
+                              properties:
+                                url:
+                                  type: string
+                                  example: "http://www.phishing.org/phishing-examples"
+                            resolution:
+                              type: string
+                              example: none
+                            status:
+                              type: string
+                              example: threat
+                            type:
+                              type: string
+                              example: scam.phishing-smishing
+                        comments:
+                          type: array
+                          items: {}
+                          example: []
+                        links:
+                          type: array
+                          items: {}
+                          example: []
+                        oneshots:
+                          type: array
+                          items: {}
+                          example: []
+                        quarantine:
+                          type: array
+                          items: {}
+                          example: []
+                        snapshots:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              date:
+                                type: number
+                                example: 1536005278869
+                              details:
+                                type: object
+                                properties:
+                                  content:
+                                    type: object
+                                    properties:
+                                      hashMD5:
+                                        type: object
+                                        properties:
+                                          value:
+                                            type: string
+                                            example: f1ccf005d83ae5fd9ea1a0d26d9606ca
+                                      httpStatusCode:
+                                        type: object
+                                        properties:
+                                          code:
+                                            type: number
+                                            example: 200
+                                          message:
+                                            type: string
+                                            example: OK
+                                      languages:
+                                        type: array
+                                        items:
+                                          type: object
+                                          properties:
+                                            abbreviation:
+                                              type: string
+                                              example: en
+                                        example:
+                                          - abbreviation: en
+                                      title:
+                                        type: string
+                                        example: Phishing | Phishing Examples
+                                  digitalLocation:
+                                    type: object
+                                    properties:
+                                      host:
+                                        type: object
+                                        properties:
+                                          domain:
+                                            type: object
+                                            properties:
+                                              name:
+                                                type: string
+                                                example: phishing.org
+                                          ip:
+                                            type: object
+                                            properties:
+                                              address:
+                                                type: string
+                                                example: 104.17.112.180
+                                          name:
+                                            type: string
+                                            example: www.phishing.org
+                                      url:
+                                        type: string
+                                        example: "http://www.phishing.org/phishing-examples"
+                                  domainInfo:
+                                    type: object
+                                    properties:
+                                      registrar:
+                                        type: string
+                                        example: "Amazon Registrar, Inc."
+                                  ipFilter:
+                                    type: object
+                                    properties:
+                                      countries:
+                                        type: array
+                                        items: {}
+                                        example: []
+                                      filtering:
+                                        type: boolean
+                                        example: true
+                                  isp:
+                                    type: object
+                                    properties:
+                                      location:
+                                        type: object
+                                        properties:
+                                          country:
+                                            type: object
+                                            properties:
+                                              name:
+                                                type: string
+                                                example: United States
+                                      name:
+                                        type: string
+                                        example: Cloudflare
+                                  type:
+                                    type: string
+                                    example: scam.phishing-smishing
+                          example:
+                            - date: 1536005278869
+                              details:
+                                content:
+                                  hashMD5:
+                                    value: f1ccf005d83ae5fd9ea1a0d26d9606ca
+                                  httpStatusCode:
+                                    code: 200
+                                    message: OK
+                                  languages:
+                                    - abbreviation: en
+                                  title: Phishing | Phishing Examples
+                                digitalLocation:
+                                  host:
+                                    domain:
+                                      name: phishing.org
+                                    ip:
+                                      address: 104.17.112.180
+                                    name: www.phishing.org
+                                  url: "http://www.phishing.org/phishing-examples"
+                                domainInfo:
+                                  registrar: "Amazon Registrar, Inc."
+                                ipFilter:
+                                  countries: []
+                                  filtering: true
+                                isp:
+                                  location:
+                                    country:
+                                      name: United States
+                                  name: Cloudflare
+                                type: scam.phishing-smishing
+                        tags:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              date:
+                                type: number
+                                example: 1536005278566
+                              id:
+                                type: number
+                                example: 2
+                              type:
+                                type: string
+                                example: event
+                          example:
+                            - date: 1536005278566
+                              id: 2
+                              type: event
+                        takedowns:
+                          type: array
+                          items: {}
+                          example: []
+                    example:
+                      - actions:
+                          - key: transition_incident
+                          - key: transition_quarantine
+                          - key: resolution_discarded
+                        attachments:
+                          - date: 1536005279435
+                            metadata:
+                              byteSize: 46438
+                              contentType: application/octet-stream
+                            name: html_210348971241_1
+                            url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/html_210348971241_1"
+                          - date: 1536005279435
+                            metadata:
+                              byteSize: 1510731
+                              contentType: image/png
+                            name: screenShot_www.phishing.org_1.png
+                            url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/screenShot_224323426575_1.png"
+                          - date: 1536005279435
+                            metadata:
+                              byteSize: 5055
+                              contentType: text/plain
+                            name: whois_linux_phishing.org_1.txt
+                            url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/whois_linux_023478623464_1.txt"
+                        basic:
+                          brand: ACME
+                          customer: TEST
+                          detectionDate: 1536005278565
+                          id: 1
+                          key: TEST-1
+                          reference:
+                            url: "http://www.phishing.org/phishing-examples"
+                          resolution: none
+                          status: threat
+                          type: scam.phishing-smishing
+                        comments: []
+                        links: []
+                        oneshots: []
+                        quarantine: []
+                        snapshots:
+                          - date: 1536005278869
+                            details:
+                              content:
+                                hashMD5:
+                                  value: f1ccf005d83ae5fd9ea1a0d26d9606ca
+                                httpStatusCode:
+                                  code: 200
+                                  message: OK
+                                languages:
+                                  - abbreviation: en
+                                title: Phishing | Phishing Examples
+                              digitalLocation:
+                                host:
+                                  domain:
+                                    name: phishing.org
+                                  ip:
+                                    address: 104.17.112.180
+                                  name: www.phishing.org
+                                url: "http://www.phishing.org/phishing-examples"
+                              domainInfo:
+                                registrar: "Amazon Registrar, Inc."
+                              ipFilter:
+                                countries: []
+                                filtering: true
+                              isp:
+                                location:
+                                  country:
+                                    name: United States
+                                name: Cloudflare
+                              type: scam.phishing-smishing
+                        tags:
+                          - date: 1536005278566
+                            id: 2
+                            type: event
+                        takedowns: []
+                      - actions:
+                          - key: transition_threat
+                          - key: resolution_resolved
+                          - key: resolution_unresolved
+                          - key: response_oneshot
+                          - key: response_takedown
+                        attachments: []
+                        basic:
+                          brand: ACME
+                          customer: TEST
+                          detectionDate: 1536008107092
+                          id: 2
+                          key: TEST-2
+                          reference:
+                            url: "https://www.phishing.org/common-phishing-scams"
+                          resolution: none
+                          status: incident
+                          type: scam.phishing-smishing
+                        links: []
+                        oneshots: []
+                        quarantine: []
+                        snapshots:
+                          - date: 1536008401142
+                            details:
+                              content:
+                                hashMD5:
+                                  value: 01d8c73ec982a5ada1d7cce2f0102e03
+                                languages:
+                                  - abbreviation: en
+                              digitalLocation:
+                                host:
+                                  domain:
+                                    name: phishing.org
+                                  ip:
+                                    address: 104.17.112.180
+                                  name: www.phishing.org
+                                url: "https://www.phishing.org/common-phishing-scams"
+                              domainInfo:
+                                registrar: "Amazon Registrar, Inc."
+                              ipFilter:
+                                countries: []
+                                filtering: true
+                              isp:
+                                location:
+                                  country:
+                                    name: United States
+                                name: Cloudflare
+                              type: scam.phishing-smishing
+                        tags:
+                          - date: 1536008107094
+                            id: 2
+                            type: event
+                          - date: 1536008107096
+                            id: 4
+                            type: event
+                        takedowns: []
+              examples:
+                /tickets:
+                  value:
+                    items:
+                      - actions:
+                          - key: transition_incident
+                          - key: transition_quarantine
+                          - key: resolution_discarded
+                        attachments:
+                          - date: 1536005279435
+                            metadata:
+                              byteSize: 46438
+                              contentType: application/octet-stream
+                            name: html_210348971241_1
+                            url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/html_210348971241_1"
+                          - date: 1536005279435
+                            metadata:
+                              byteSize: 1510731
+                              contentType: image/png
+                            name: screenShot_www.phishing.org_1.png
+                            url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/screenShot_224323426575_1.png"
+                          - date: 1536005279435
+                            metadata:
+                              byteSize: 5055
+                              contentType: text/plain
+                            name: whois_linux_phishing.org_1.txt
+                            url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/whois_linux_023478623464_1.txt"
+                        basic:
+                          brand: ACME
+                          customer: TEST
+                          detectionDate: 1536005278565
+                          id: 1
+                          key: TEST-1
+                          reference:
+                            url: "http://www.phishing.org/phishing-examples"
+                          resolution: none
+                          status: threat
+                          type: scam.phishing-smishing
+                        comments: []
+                        links: []
+                        oneshots: []
+                        quarantine: []
+                        snapshots:
+                          - date: 1536005278869
+                            details:
+                              content:
+                                hashMD5:
+                                  value: f1ccf005d83ae5fd9ea1a0d26d9606ca
+                                httpStatusCode:
+                                  code: 200
+                                  message: OK
+                                languages:
+                                  - abbreviation: en
+                                title: Phishing | Phishing Examples
+                              digitalLocation:
+                                host:
+                                  domain:
+                                    name: phishing.org
+                                  ip:
+                                    address: 104.17.112.180
+                                  name: www.phishing.org
+                                url: "http://www.phishing.org/phishing-examples"
+                              domainInfo:
+                                registrar: "Amazon Registrar, Inc."
+                              ipFilter:
+                                countries: []
+                                filtering: true
+                              isp:
+                                location:
+                                  country:
+                                    name: United States
+                                name: Cloudflare
+                              type: scam.phishing-smishing
+                        tags:
+                          - date: 1536005278566
+                            id: 2
+                            type: event
+                        takedowns: []
+                      - actions:
+                          - key: transition_threat
+                          - key: resolution_resolved
+                          - key: resolution_unresolved
+                          - key: response_oneshot
+                          - key: response_takedown
+                        attachments: []
+                        basic:
+                          brand: ACME
+                          customer: TEST
+                          detectionDate: 1536008107092
+                          id: 2
+                          key: TEST-2
+                          reference:
+                            url: "https://www.phishing.org/common-phishing-scams"
+                          resolution: none
+                          status: incident
+                          type: scam.phishing-smishing
+                        links: []
+                        oneshots: []
+                        quarantine: []
+                        snapshots:
+                          - date: 1536008401142
+                            details:
+                              content:
+                                hashMD5:
+                                  value: 01d8c73ec982a5ada1d7cce2f0102e03
+                                languages:
+                                  - abbreviation: en
+                              digitalLocation:
+                                host:
+                                  domain:
+                                    name: phishing.org
+                                  ip:
+                                    address: 104.17.112.180
+                                  name: www.phishing.org
+                                url: "https://www.phishing.org/common-phishing-scams"
+                              domainInfo:
+                                registrar: "Amazon Registrar, Inc."
+                              ipFilter:
+                                countries: []
+                                filtering: true
+                              isp:
+                                location:
+                                  country:
+                                    name: United States
+                                name: Cloudflare
+                              type: scam.phishing-smishing
+                        tags:
+                          - date: 1536008107094
+                            id: 2
+                            type: event
+                          - date: 1536008107096
+                            id: 4
+                            type: event
+                        takedowns: []
+    post:
+      tags:
+        - Ticket operations
+      summary: Create ticket
+      description: |
+        Creates a new ticket with the given brand, type and reference (URL, IP/host + port, domain). 
+        Multiple tickets of the same type and brand may be created by the same request by including additional references.
+        
+        An optional action may be performed on the created tickets. The performed action is controlled by two top-level fields in the request body:
+        
+        **Field `status`** accepts values `threat`, `quarantine` and `incident`, indicating the desired status for the created tickets.
+        **Field `response`** accepts values `oneshot` and `takedown`, indicating the desired incident response for the created tickets. If this field is used, `status` is ignored.
+        
+        If neither field is used, the created tickets have status `incident` by default.
+
+      operationId: createTicket
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                context:
+                  type: object
+                  properties:
+                    brand:
+                      type: object
+                      properties:
+                        value:
+                          type: string
+                          example: ACME
+                    type:
+                      type: object
+                      properties:
+                        value:
+                          type: string
+                          example: scam.phishing-smishing
+                customer:
+                  type: object
+                  properties:
+                    key:
+                      type: string
+                      example: TEST
+                references:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      url:
+                        type: string
+                        example: "https://www.phishing.org/how-to-phish-employees"
+                  example:
+                    - url: "https://www.phishing.org/how-to-phish-employees"
+                status:
+                  type: string
+                  example: threat
+            example:
+              context:
+                brand:
+                  value: ACME
+                type:
+                  value: scam.phishing-smishing
+              customer:
+                key: TEST
+              references:
+                - url: "https://www.phishing.org/how-to-phish-employees"
+              status: threat
+      responses:
+        "200":
+          description: /tickets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        value:
+                          type: string
+                          example: TEST-3
+                    example:
+                      - value: TEST-3
+              examples:
+                /tickets:
+                  value:
+                    keys:
+                      - value: TEST-3
+  /gateway/1.0/api/tickets/tickets/TEST-1:
+    get:
+      tags:
+        - Ticket operations
+      summary: Retrieve single ticket details
+      description: Returns information about a single ticket and its current detection.
+      operationId: retrieveSingleTicketDetails
+      responses:
+        "200":
+          description: /tickets/TEST-1
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  actions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                          example: transition_incident
+                    example:
+                      - key: transition_incident
+                      - key: transition_quarantine
+                      - key: resolution_discarded
+                  attachments:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: number
+                          example: 1536005279435
+                        metadata:
+                          type: object
+                          properties:
+                            byteSize:
+                              type: number
+                              example: 46438
+                            contentType:
+                              type: string
+                              example: application/octet-stream
+                        name:
+                          type: string
+                          example: html_210348971241_1
+                        url:
+                          type: string
+                          example: "https://s3.amazonaws.com/axur-attachment-files-prod/1/html_210348971241_1"
+                    example:
+                      - date: 1536005279435
+                        metadata:
+                          byteSize: 46438
+                          contentType: application/octet-stream
+                        name: html_210348971241_1
+                        url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/html_210348971241_1"
+                      - date: 1536005279435
+                        metadata:
+                          byteSize: 1510731
+                          contentType: image/png
+                        name: screenShot_www.phishing.org_338116334.png
+                        url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/screenShot_224323426575_1.png"
+                      - date: 1536005279435
+                        metadata:
+                          byteSize: 5055
+                          contentType: text/plain
+                        name: whois_linux_phishing.org_338116334.txt
+                        url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/whois_linux_023478623464_1.txt"
+                  basic:
+                    type: object
+                    properties:
+                      brand:
+                        type: string
+                        example: ACME
+                      customer:
+                        type: string
+                        example: TEST
+                      detectionDate:
+                        type: number
+                        example: 1536005278565
+                      id:
+                        type: number
+                        example: 1
+                      key:
+                        type: string
+                        example: TEST-1
+                      reference:
+                        type: object
+                        properties:
+                          url:
+                            type: string
+                            example: "http://www.phishing.org/phishing-examples"
+                      resolution:
+                        type: string
+                        example: none
+                      status:
+                        type: string
+                        example: threat
+                      type:
+                        type: string
+                        example: scam.phishing-smishing
+                  comments:
+                    type: array
+                    items: {}
+                    example: []
+                  detections:
+                    type: array
+                    items:
+                      type: number
+                      example: 1536005278565
+                    example:
+                      - 1536005278565
+                  events:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: number
+                          example: 1536005278564
+                        sequence:
+                          type: number
+                          example: 1
+                        type:
+                          type: string
+                          example: tickets.test.ticket.created
+                    example:
+                      - date: 1536005278564
+                        sequence: 1
+                        type: tickets.test.ticket.created
+                      - date: 1536005278565
+                        sequence: 2
+                        type: tickets.test.ticket.threat.detected
+                      - date: 1536005278566
+                        sequence: 3
+                        type: tickets.test.ticket.tag.added
+                  links:
+                    type: array
+                    items: {}
+                    example: []
+                  oneshots:
+                    type: array
+                    items: {}
+                    example: []
+                  quarantine:
+                    type: array
+                    items: {}
+                    example: []
+                  snapshots:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: number
+                          example: 1536005278869
+                        details:
+                          type: object
+                          properties:
+                            content:
+                              type: object
+                              properties:
+                                hashMD5:
+                                  type: object
+                                  properties:
+                                    value:
+                                      type: string
+                                      example: f1ccf005d83ae5fd9ea1a0d26d9606ca
+                                httpStatusCode:
+                                  type: object
+                                  properties:
+                                    code:
+                                      type: number
+                                      example: 200
+                                    message:
+                                      type: string
+                                      example: OK
+                                languages:
+                                  type: array
+                                  items:
+                                    type: object
+                                    properties:
+                                      abbreviation:
+                                        type: string
+                                        example: en
+                                  example:
+                                    - abbreviation: en
+                                title:
+                                  type: string
+                                  example: Phishing | Phishing Examples
+                            digitalLocation:
+                              type: object
+                              properties:
+                                host:
+                                  type: object
+                                  properties:
+                                    domain:
+                                      type: object
+                                      properties:
+                                        name:
+                                          type: string
+                                          example: phishing.org
+                                    ip:
+                                      type: object
+                                      properties:
+                                        address:
+                                          type: string
+                                          example: 104.17.112.180
+                                    name:
+                                      type: string
+                                      example: www.phishing.org
+                                url:
+                                  type: string
+                                  example: "http://www.phishing.org/phishing-examples"
+                            domainInfo:
+                              type: object
+                              properties:
+                                registrar:
+                                  type: string
+                                  example: "Amazon Registrar, Inc."
+                            ipFilter:
+                              type: object
+                              properties:
+                                countries:
+                                  type: array
+                                  items: {}
+                                  example: []
+                                filtering:
+                                  type: boolean
+                                  example: true
+                            isp:
+                              type: object
+                              properties:
+                                location:
+                                  type: object
+                                  properties:
+                                    country:
+                                      type: object
+                                      properties:
+                                        name:
+                                          type: string
+                                          example: United States
+                                name:
+                                  type: string
+                                  example: Cloudflare
+                            type:
+                              type: string
+                              example: scam.phishing-smishing
+                    example:
+                      - date: 1536005278869
+                        details:
+                          content:
+                            hashMD5:
+                              value: f1ccf005d83ae5fd9ea1a0d26d9606ca
+                            httpStatusCode:
+                              code: 200
+                              message: OK
+                            languages:
+                              - abbreviation: en
+                            title: Phishing | Phishing Examples
+                          digitalLocation:
+                            host:
+                              domain:
+                                name: phishing.org
+                              ip:
+                                address: 104.17.112.180
+                              name: www.phishing.org
+                            url: "http://www.phishing.org/phishing-examples"
+                          domainInfo:
+                            registrar: "Amazon Registrar, Inc."
+                          ipFilter:
+                            countries: []
+                            filtering: true
+                          isp:
+                            location:
+                              country:
+                                name: United States
+                            name: Cloudflare
+                          type: scam.phishing-smishing
+                  tags:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: number
+                          example: 1536005278566
+                        id:
+                          type: number
+                          example: 2
+                        type:
+                          type: string
+                          example: event
+                    example:
+                      - date: 1536005278566
+                        id: 2
+                        type: event
+                  takedowns:
+                    type: array
+                    items: {}
+                    example: []
+              examples:
+                /tickets/TEST-1:
+                  value:
+                    actions:
+                      - key: transition_incident
+                      - key: transition_quarantine
+                      - key: resolution_discarded
+                    attachments:
+                      - date: 1536005279435
+                        metadata:
+                          byteSize: 46438
+                          contentType: application/octet-stream
+                        name: html_210348971241_1
+                        url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/html_210348971241_1"
+                      - date: 1536005279435
+                        metadata:
+                          byteSize: 1510731
+                          contentType: image/png
+                        name: screenShot_www.phishing.org_338116334.png
+                        url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/screenShot_224323426575_1.png"
+                      - date: 1536005279435
+                        metadata:
+                          byteSize: 5055
+                          contentType: text/plain
+                        name: whois_linux_phishing.org_338116334.txt
+                        url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/whois_linux_023478623464_1.txt"
+                    basic:
+                      brand: ACME
+                      customer: TEST
+                      detectionDate: 1536005278565
+                      id: 1
+                      key: TEST-1
+                      reference:
+                        url: "http://www.phishing.org/phishing-examples"
+                      resolution: none
+                      status: threat
+                      type: scam.phishing-smishing
+                    comments: []
+                    detections:
+                      - 1536005278565
+                    events:
+                      - date: 1536005278564
+                        sequence: 1
+                        type: tickets.test.ticket.created
+                      - date: 1536005278565
+                        sequence: 2
+                        type: tickets.test.ticket.threat.detected
+                      - date: 1536005278566
+                        sequence: 3
+                        type: tickets.test.ticket.tag.added
+                    links: []
+                    oneshots: []
+                    quarantine: []
+                    snapshots:
+                      - date: 1536005278869
+                        details:
+                          content:
+                            hashMD5:
+                              value: f1ccf005d83ae5fd9ea1a0d26d9606ca
+                            httpStatusCode:
+                              code: 200
+                              message: OK
+                            languages:
+                              - abbreviation: en
+                            title: Phishing | Phishing Examples
+                          digitalLocation:
+                            host:
+                              domain:
+                                name: phishing.org
+                              ip:
+                                address: 104.17.112.180
+                              name: www.phishing.org
+                            url: "http://www.phishing.org/phishing-examples"
+                          domainInfo:
+                            registrar: "Amazon Registrar, Inc."
+                          ipFilter:
+                            countries: []
+                            filtering: true
+                          isp:
+                            location:
+                              country:
+                                name: United States
+                            name: Cloudflare
+                          type: scam.phishing-smishing
+                    tags:
+                      - date: 1536005278566
+                        id: 2
+                        type: event
+                    takedowns: []
+  /gateway/1.0/api/tickets/tickets/TEST-1/actions:
+    post:
+      tags:
+        - Ticket operations
+      summary: Execute ticket lifecycle action
+      description: | 
+        Executes a lifecycle action on a ticket. Valid values are returned in the ticket details.
+        
+        The list of supported lifecycle actions can be found in the [Lifecycle](#section/Lifecycle) section.
+
+      operationId: executeTicketLifecycleAction
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                key:
+                  type: string
+                  example: transition_incident
+            example:
+              key: transition_incident
+      responses:
+        "204":
+          description: /tickets/TEST-1/actions
+          content:
+            text/plain:
+              examples:
+                /tickets/TEST-1/actions:
+                  value: ""
+  /gateway/1.0/api/tickets/tickets/TEST-1/comments:
+    post:
+      tags:
+        - Ticket operations
+      summary: Add ticket comment
+      description: Adds a comment to a ticket.
+      operationId: addTicketComment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                  example: Comment body.
+            example:
+              content: Comment body.
+      responses:
+        "204":
+          description: /tickets/TEST-1/comments
+          content:
+            text/plain:
+              examples:
+                /tickets/TEST-1/comments:
+                  value: ""
+  /gateway/1.0/api/tickets/tickets/TEST-1/detections/1536005278565:
+    get:
+      tags:
+        - Ticket operations
+      summary: Retrieve detection details
+      description: "Returns information about a specific ticket detection, identified by the given ticket key and detection date (as a millisecond timestamp). Existing detections for a ticket are returned by *Retrieve single ticket details* and *Retrieve multiple ticket details* operations, under field `detections`."
+      operationId: retrieveDetectionDetails
+      responses:
+        "200":
+          description: /tickets/TEST-1/detections/1536005278565
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  attachments:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: number
+                          example: 1536005279435
+                        metadata:
+                          type: object
+                          properties:
+                            byteSize:
+                              type: number
+                              example: 46438
+                            contentType:
+                              type: string
+                              example: application/octet-stream
+                        name:
+                          type: string
+                          example: html_210348971241_1
+                        url:
+                          type: string
+                          example: "https://s3.amazonaws.com/axur-attachment-files-prod/1/html_210348971241_1"
+                    example:
+                      - date: 1536005279435
+                        metadata:
+                          byteSize: 46438
+                          contentType: application/octet-stream
+                        name: html_210348971241_1
+                        url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/html_210348971241_1"
+                      - date: 1536005279435
+                        metadata:
+                          byteSize: 1510731
+                          contentType: image/png
+                        name: screenShot_www.phishing.org_338116334.png
+                        url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/screenShot_224323426575_1.png"
+                      - date: 1536005279435
+                        metadata:
+                          byteSize: 5055
+                          contentType: text/plain
+                        name: whois_linux_phishing.org_338116334.txt
+                        url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/whois_linux_023478623464_1.txt"
+                  basic:
+                    type: object
+                    properties:
+                      brand:
+                        type: string
+                        example: ACME
+                      customer:
+                        type: string
+                        example: TEST
+                      detectionDate:
+                        type: number
+                        example: 1536005278565
+                      id:
+                        type: number
+                        example: 1
+                      key:
+                        type: string
+                        example: TEST-1
+                      reference:
+                        type: object
+                        properties:
+                          url:
+                            type: string
+                            example: "http://www.phishing.org/phishing-examples"
+                      resolution:
+                        type: string
+                        example: none
+                      status:
+                        type: string
+                        example: threat
+                      type:
+                        type: string
+                        example: scam.phishing-smishing
+                  oneshots:
+                    type: array
+                    items: {}
+                    example: []
+                  snapshots:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: number
+                          example: 1536005278869
+                        details:
+                          type: object
+                          properties:
+                            content:
+                              type: object
+                              properties:
+                                hashMD5:
+                                  type: object
+                                  properties:
+                                    value:
+                                      type: string
+                                      example: f1ccf005d83ae5fd9ea1a0d26d9606ca
+                                httpStatusCode:
+                                  type: object
+                                  properties:
+                                    code:
+                                      type: number
+                                      example: 200
+                                    message:
+                                      type: string
+                                      example: OK
+                                languages:
+                                  type: array
+                                  items:
+                                    type: object
+                                    properties:
+                                      abbreviation:
+                                        type: string
+                                        example: en
+                                  example:
+                                    - abbreviation: en
+                                title:
+                                  type: string
+                                  example: Phishing | Phishing Examples
+                            digitalLocation:
+                              type: object
+                              properties:
+                                host:
+                                  type: object
+                                  properties:
+                                    domain:
+                                      type: object
+                                      properties:
+                                        name:
+                                          type: string
+                                          example: phishing.org
+                                    ip:
+                                      type: object
+                                      properties:
+                                        address:
+                                          type: string
+                                          example: 104.17.112.180
+                                    name:
+                                      type: string
+                                      example: www.phishing.org
+                                url:
+                                  type: string
+                                  example: "http://www.phishing.org/phishing-examples"
+                            domainInfo:
+                              type: object
+                              properties:
+                                registrar:
+                                  type: string
+                                  example: "Amazon Registrar, Inc."
+                            ipFilter:
+                              type: object
+                              properties:
+                                countries:
+                                  type: array
+                                  items: {}
+                                  example: []
+                                filtering:
+                                  type: boolean
+                                  example: true
+                            isp:
+                              type: object
+                              properties:
+                                location:
+                                  type: object
+                                  properties:
+                                    country:
+                                      type: object
+                                      properties:
+                                        name:
+                                          type: string
+                                          example: United States
+                                name:
+                                  type: string
+                                  example: Cloudflare
+                            type:
+                              type: string
+                              example: scam.phishing-smishing
+                    example:
+                      - date: 1536005278869
+                        details:
+                          content:
+                            hashMD5:
+                              value: f1ccf005d83ae5fd9ea1a0d26d9606ca
+                            httpStatusCode:
+                              code: 200
+                              message: OK
+                            languages:
+                              - abbreviation: en
+                            title: Phishing | Phishing Examples
+                          digitalLocation:
+                            host:
+                              domain:
+                                name: phishing.org
+                              ip:
+                                address: 104.17.112.180
+                              name: www.phishing.org
+                            url: "http://www.phishing.org/phishing-examples"
+                          domainInfo:
+                            registrar: "Amazon Registrar, Inc."
+                          ipFilter:
+                            countries: []
+                            filtering: true
+                          isp:
+                            location:
+                              country:
+                                name: United States
+                            name: Cloudflare
+                          type: scam.phishing-smishing
+                  takedowns:
+                    type: array
+                    items: {}
+                    example: []
+              examples:
+                /tickets/TEST-1/detections/1536005278565:
+                  value:
+                    attachments:
+                      - date: 1536005279435
+                        metadata:
+                          byteSize: 46438
+                          contentType: application/octet-stream
+                        name: html_210348971241_1
+                        url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/html_210348971241_1"
+                      - date: 1536005279435
+                        metadata:
+                          byteSize: 1510731
+                          contentType: image/png
+                        name: screenShot_www.phishing.org_338116334.png
+                        url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/screenShot_224323426575_1.png"
+                      - date: 1536005279435
+                        metadata:
+                          byteSize: 5055
+                          contentType: text/plain
+                        name: whois_linux_phishing.org_338116334.txt
+                        url: "https://s3.amazonaws.com/axur-attachment-files-prod/1/whois_linux_023478623464_1.txt"
+                    basic:
+                      brand: ACME
+                      customer: TEST
+                      detectionDate: 1536005278565
+                      id: 1
+                      key: TEST-1
+                      reference:
+                        url: "http://www.phishing.org/phishing-examples"
+                      resolution: none
+                      status: threat
+                      type: scam.phishing-smishing
+                    oneshots: []
+                    snapshots:
+                      - date: 1536005278869
+                        details:
+                          content:
+                            hashMD5:
+                              value: f1ccf005d83ae5fd9ea1a0d26d9606ca
+                            httpStatusCode:
+                              code: 200
+                              message: OK
+                            languages:
+                              - abbreviation: en
+                            title: Phishing | Phishing Examples
+                          digitalLocation:
+                            host:
+                              domain:
+                                name: phishing.org
+                              ip:
+                                address: 104.17.112.180
+                              name: www.phishing.org
+                            url: "http://www.phishing.org/phishing-examples"
+                          domainInfo:
+                            registrar: "Amazon Registrar, Inc."
+                          ipFilter:
+                            countries: []
+                            filtering: true
+                          isp:
+                            location:
+                              country:
+                                name: United States
+                            name: Cloudflare
+                          type: scam.phishing-smishing
+                    takedowns: []
+  /gateway/1.0/api/webhooks/subscriptions:
+    get:
+      tags:
+        - Webhooks
+      summary: Retrieve subscriptions
+      description: "Returns all webhook subscriptions and related info (identifiers, endpoints and secrets)."
+      operationId: retrieveSubscriptions
+      responses:
+        "200":
+          description: Retrieve webhook subscriptions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subscriptions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        endpoint:
+                          type: string
+                          example: "https://www.acme.net/webhooks"
+                        id:
+                          type: number
+                          example: 321
+                        secret:
+                          type: string
+                          example: ddPxe5Vdh9XH1kemf7NWyhRVKWYalTj3L0yrZDuvMSg1CousHokWF38RoxsaYs35MS7jwkuBqVPSHRvpybYgrlEEJxX8GQhhxVUi1ViaGD5SAEwH68PUsEkHC1KQa5z9
+                    example:
+                      - endpoint: "https://www.acme.net/webhooks"
+                        id: 321
+                        secret: ddPxe5Vdh9XH1kemf7NWyhRVKWYalTj3L0yrZDuvMSg1CousHokWF38RoxsaYs35MS7jwkuBqVPSHRvpybYgrlEEJxX8GQhhxVUi1ViaGD5SAEwH68PUsEkHC1KQa5z9
+              examples:
+                Retrieve webhook subscriptions:
+                  value:
+                    subscriptions:
+                      - endpoint: "https://www.acme.net/webhooks"
+                        id: 321
+                        secret: ddPxe5Vdh9XH1kemf7NWyhRVKWYalTj3L0yrZDuvMSg1CousHokWF38RoxsaYs35MS7jwkuBqVPSHRvpybYgrlEEJxX8GQhhxVUi1ViaGD5SAEwH68PUsEkHC1KQa5z9
+    post:
+      tags:
+        - Webhooks
+      summary: Create subscription
+      description: | 
+        Creates a new webhook subscription with the given endpoint to receive ticket events in real-time.
+        
+        Important: the endpoint value must be a valid URL that accepts the POST verb and returns an HTTP success code (2xx), otherwise an error will be thrown.
+        
+        An automatically generated secret is returned along with the created subscription information, which should be used to validate the signature of published events.
+        
+        After this request is completed, new ticket events will be published to the webhook endpoint.
+      operationId: createSubscription
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                endpoint:
+                  type: string
+                  example: "<webhook endpoint URL>"
+            example:
+              endpoint: "<webhook endpoint URL>"
+      responses:
+        "200":
+          description: Create webhook subscription
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  endpoint:
+                    type: string
+                    example: "https://www.acme.net/webhooks"
+                  id:
+                    type: number
+                    example: 321
+                  secret:
+                    type: string
+                    example: ddPxe5Vdh9XH1kemf7NWyhRVKWYalTj3L0yrZDuvMSg1CousHokWF38RoxsaYs35MS7jwkuBqVPSHRvpybYgrlEEJxX8GQhhxVUi1ViaGD5SAEwH68PUsEkHC1KQa5z9
+              examples:
+                Create webhook subscription:
+                  value:
+                    endpoint: "https://www.acme.net/webhooks"
+                    id: 321
+                    secret: ddPxe5Vdh9XH1kemf7NWyhRVKWYalTj3L0yrZDuvMSg1CousHokWF38RoxsaYs35MS7jwkuBqVPSHRvpybYgrlEEJxX8GQhhxVUi1ViaGD5SAEwH68PUsEkHC1KQa5z9
+  /gateway/1.0/api/webhooks/subscriptions/321:
+    delete:
+      tags:
+        - Webhooks
+      summary: Remove subscription
+      description: "Removes the existing webhook subscription with the given identifier. After this request is completed, new ticket events will not be published to the webhook endpoint."
+      operationId: removeSubscription
+      responses:
+        "204":
+          description: Remove webhook subscription
+          content: {}
+  /gateway/1.0/api/webhooks/subscriptions/321/ping:
+    post:
+      tags:
+        - Webhooks
+      summary: Ping subscription
+      description: "Sends a `ping` event to the endpoint of the existing webhook subscription with the given identifier, for testing or validation purposes.\nIf this operation succeeds, it returns an HTTP 200 status code and a JSON body containing the pinged endpoint's HTTP response data. Otherwise, a JSON response body like `{\"error\": \"message\"}` is returned."
+      operationId: pingSubscription
+      responses:
+        "200":
+          description: Ping subscription
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  body:
+                    type: string
+                    example: body from webhook endpoint response
+                  status:
+                    type: number
+                    example: 200
+              examples:
+                Ping subscription:
+                  value:
+                    body: body from webhook endpoint response
+                    status: 200
+tags:
+  - name: Session management
+  - name: Ticket operations
+    description: | 
+
+      A ticket represents a potential case of online fraud, such as a phishing website or a downloadable malware file. 
+      It may include multiple detections, incident responses (OneShots and Takedowns), snapshots (see [Snapshot](#section/Snapshot) section), 
+      tag associations, file attachments, ticket links, user comments, lifecycle events and other information.
+      
+      Each time a ticket is closed and then reopened, a new detection is recorded.
+      
+      # Ticket details
+      Information about a ticket can be obtained using the *Retrieve single ticket details* and *Retrieve multiple ticket details* operations, 
+      described below.
+      
+      Ticket details may include the following pieces of information as top-level fields, among others:
+      
+      - `basic`: Object containing basic ticket details (ticket `key`, `brand`, `reference`, `type`, `status`, `resolution`).
+      - `detections`: List of millisecond timestamps, each one identifying a detection (see *Retrieve detection details* operation).
+      - `actions`: List of currently valid lifecycle actions (see [Lifecycle](#section/Lifecycle) section and [Execute lifecycle action](#operation/executeTicketLifecycleAction) operation).
+      - `oneshots`: List of OneShot incident responses requested during the current detection.
+      - `takedowns`: List of Takedown incident responses requested during the current detection;
+      - `snapshots`: List of snapshots collected for the current detection.
+      - `tags`: List of system and user tags associated to the ticket.
+      - `attachments`: List of file attachments collected by the system or uploaded by users.
+      - `comments`: List of user comments.
+      - `events`: List of past lifecycle events. It is a timeline of relevant actions performed on the ticket by the system itself or by users.
+      
+      # Ticket types
+      These are the currently supported ticket types and their internal API representations:
+
+      - Brand misuse and Fraudulent Brand Use (`brand-abuse.brand-misuse`)
+      - Brand Usage in Paid Search (`brand-abuse.paid-search`)
+      - Fake Social Profile and Fanpage (`brand-abuse.fake-social-profile`)
+      - Rogue Mobile App and APK (`brand-abuse.rogue-mobile-app`)
+      - Similar Domain Names (`brand-abuse.similar-domain-names`)
+      - Fake Address Insertion (`brand-abuse.fake-address`)
+      - Fraudulent Association on Professional Network (`brand-abuse.fraudulent-association`)
+      - Command & Control (`scam.command-control`)
+      - DNS Poisoning (`scam.dns-poisoning`)
+      - Malware (`scam.malware`)
+      - Phishing and SMiShing (`scam.phishing-smishing`)
+      - Proxy Auto Configuration File (`scam.pac`)
+      - Proxy Poisoning (`scam.proxy-poisoning`)
+      - Redirect (`scam.redirect`)
+      - Sensitive Data (`information-leakage.sensitive-data`)
+      - Unauthorized Sales (`online-sales-abuse.unauthorized-sales`)
+      
+      # Lifecycle
+      The ticket lifecycle describes the different stages a ticket may go through from the moment a potential threat is detected until 
+      t is considered closed. A ticket's current state determines which lifecycle actions are possible. The current state depends on the ticket's `status`, `resolution` and existence of open incident responses (OneShot and/or Takedown). Contract details may affect OneShot availability.
+      
+      ![Ticket lifecycle](https://axur-api-docs.s3.amazonaws.com/ticket_lifecycle.png)
+      
+      - **Open Threat**: status `threat`, resolution `none`;
+      - **Discarded Threat**: status `threat`, resolution `discarded`;
+      - **Quarantine**: status `quarantine`;
+      - **Open Incident**: status `incident`, resolution `none`;
+      - **Open OneShot**: status `incident`, resolution `none`, has open OneShot incident response;
+      - **Open Takedown**: status `incident`, resolution `none`, has open Takedown incident response;
+      - **Closed Incident**: status `incident`, resolution one of `resolved`, `unresolved`, `discarded`.
+      
+      A list of currently valid lifecycle actions for a ticket is included in the ticket details (see *Retrieve multiple ticket details* and *Retrieve single ticket details* below), under the top-level field `actions`. These are the supported lifecycle actions:
+
+      - `cancellation_oneshot` cancels a recently requested OneShot (valid for 3 minutes after request);
+      - `cancellation_takedown` cancels a recently requested Takedown (valid for 3 minutes after request);
+      - `resolution_discarded` closes a potential threat, indicating it is not relevant;
+      - `resolution_reopen` reopens a discarded threat or a closed incident;
+      - `resolution_resolved` closes an open incident or OneShot, indicating success;
+      - `resolution_unresolved` closes an open incident or OneShot, indicating failure;
+      - `response_oneshot` requests a OneShot incident response (requires *expert* permission level);
+      - `response_takedown` requests a Takedown incident response (requires *expert* permission level);
+      - `transition_incident` turns a potential or quarantined threat into an open incident;
+      - `transition_quarantine` moves a potential threat or open incident to quarantine monitoring;
+      - `transition_threat` moves a quarantined threat out of monitoring or reverts an open incident to a potential threat;
+      - `untag_unread` marks quarantined threat as read.
+      
+      # Snapshot
+      A snapshot contains known information about a potential 
+      case of online fraud, such as HTTP response status code and ISP (Internet Service Provider) details, for example. A ticket detection may have multiple snapshots, each collected at different points in time. For any given piece of information, the most up-to-date value is the one contained the most recent snapshot. Snapshot structure may vary depending on the ticket type.
+      
+      System-created detections include a pre-collected snapshot. For user-created detections, it may take a few minutes for a corresponding 
+      snapshot to be collected.
+      
+      # System tags
+      The system automatically assigns certain tags to tickets during major lifecycle events. These tags are available to be used in 
+      queries just like regular user-created tags (see [Search operations](#tag/Search-operations) section).
+      
+      These are the currently supported system tags and their corresponding internal `id`s:
+
+      - unread (`1`)
+      - threat_detected (`2`)
+      - threat_discarded (`3`)
+      - incident_registered (`4`)
+      - oneshot_requested (`5`)
+      - takedown_requested (`6`)
+      - incident_closed (`7`)
+      - oneshot_notified (`10001`)
+      - oneshot_verified (`10002`)
+      - takedown_notified (`10003`)
+      - takedown_verified (`10004`)
+
+  - name: Search operations
+    description: | 
+      The ticket search engine allows an user to specify queries and find existing tickets that match desired criteria. Search results include only ticket identifiers and keys, which must be used with *Retrieve multiple ticket details* or *Retrieve single ticket details* operations if additional information is desired.
+      
+      # Query syntax
+      A search query contains a list of field clauses. Each field clause specifies a field name, a list of one or more values and optionally 
+      an operation to apply on the specified values. In order for a ticket to be returned as a query result item, it must satisfy all field clauses.
+      
+      This is a simple query object, which searches for tickets that are open threats (`status` field with value `threat` and `resolution` 
+      field with value `empty`):
+
+      ```json
+      {  
+        "query": [
+          {"field": "status", "value": ["threat"]},     # first field clause
+          {"field": "resolution", "value": ["empty"]}   # second field clause
+        ]
+      }
+      ```
+      The supported field clause operations are `AND` (logical conjunction, which is the default operation if one is not explicitly specified), 
+      `OR` (logical disjunction) and `NOT` (logical negation).
+      
+      To illustrate the use of field clause operations, the following query searches for tickets of any type except `scam.phishing-smishing` (negation) 
+      that are closed as either `resolved` or `unresolved` (conjunction):
+      
+      ```json
+      {
+        "query": [
+            {"field": "type", "value": ["scam.phishing-smishing"], "operation": "NOT"},
+            {"field": "resolution", "value": ["resolved", "unresolved"], "operation": "OR"}
+        ]
+      }
+      ```
+      # Supported fields
+      
+      The following fields may be included in search queries:
+
+      - `status` (valid values are `threat`, `quarantine` and `incident`)
+      - `resolution` (valid values are `empty`, indicating open tickets; `any`, indicating closed tickets with any resolution; `discarded`; `resolved`; `unresolved`)
+      - `type` (valid values are listed under [Ticket types](#section/Ticket-types) section)
+      - `brand` (valid values are brand keys)
+      - `text` (searches plain text  contained in ticket key, reference and comments)
+      - `tags` (see next section for value syntax)
+      
+      # Searching for system tag associations
+
+      As mentioned above (see [System tags]](#section/System-tags) section), the system automatically assigns certain tags to tickets during major lifecycle events. 
+      System tag associations may be used in queries to find tickets by past events, such as threat detection and Takedown request.
+      
+      To search for tag associations (both system- and user-created), the value(s) must be specified in the query field clause using the following syntax:
+
+      ```json
+      {"id": 2, "exists": true, "startDate": 1577847600000, "endDate": 1580526000000, "currentDetectionOnly": true}
+      ```
+      
+      `id` is the tag's identifier. System tags have pre-defined identifiers (see [System tags](#section/System-tags) section for a list of system tags and their ids. 
+      User tag identifiers may be obtained using the *Retrieve tags* operation.
+
+      `exists` is a boolean flag indicating whether the field clause matches tickets *with* or *without* an association to the given tag.
+
+      `startDate` and `endDate` optionally specify a time range for the search. If specified, tag associations created before `startDate` or after `endDate` do not match the field clause.
+      
+      `currentDetectionOnly` is a boolean flag indicating the field clause applies only to tag associations created during the ticket's current detection 
+      (that is, associations created during past detections are ignored if the flag is set to `true`).
+      
+      # Query examples
+      
+      ### Example 1
+      Searching for all open tickets that had a new detection in March 2020.
+
+      ```json
+      {
+        "query": [
+          {
+            "field": "resolution",
+            "value": ["empty"]                  # open tickets
+          },   
+          {
+            "field": "tags",
+            "value": [
+              {
+                "id": 2,                        # system tag id 2: threat_detected
+                "exists": true,
+                "startDate": 1583020800000,     # millisecond timestamp, 2020-03-01
+                "endDate": 1585699200000        # millisecond timestamp, 2020-04-01
+              }
+            ]
+          }
+        ]
+      }
+      ```
+      ### Example 2
+      Searching for all tickets that were closed since the beginning of 2020. Two different system tags are used to search for different ways 
+      to close a ticket.
+
+      ```json
+      {
+        "query": [
+          {
+            "field": "tags",
+            "value": [
+              {
+                "id": 3,                        # system tag id 3: threat_discarded
+                "exists": true,
+                "startDate": 1577836800000      # millisecond timestamp, 2020-01-01
+              },
+              {
+                "id": 7,                        # system tag id 7: incident_closed
+                "exists": true,
+                "startDate": 1577836800000      # millisecond timestamp, 2020-01-01
+              }
+            ],
+            "operation": "OR"                   # matches tickets with tag id 3 OR 7
+          }
+        ]
+      }
+      ```
+
+      ### Example 3
+      Searching for all tickets that had a Takedown requested in a previous detection, but not in the current one. 
+      The same system tag is used twice: the first usage searches for its existence in any detection; the second usage searches for 
+      its nonexistence in the current detection.
+
+      ```json
+      {
+        "query": [
+          {
+            "field": "tags",
+            "value": [
+              {
+                "id": 6,                        # system tag id 6: takedown_requested
+                "exists": true,                 # searches for tickets with this tag association
+                "currentDetectionOnly": false   # searches in all ticket detections
+              },
+              {
+                "id": 6,                        # system tag id 6: takedown_requested
+                "exists": false,                # searches for tickets without this tag association
+                "currentDetectionOnly": true    # searches only in current ticket detection
+              }
+            ]
+          }
+        ]
+      }
+      ```
+      
+      ### Example 4
+      Searching for all discarded threats of type *Fake Social Profile and Fanpage* with text matching \"facebook.com\".
+      ```
+      {
+        "query": [
+          {
+            "field": "status",
+            "value": ["threat"]
+          },   
+          {
+            "field": "resolution",
+            "value": ["discarded"]
+          },
+          {
+            "field": "type",
+            "value": ["brand-abuse.fake-social-profile"]   
+          },
+          {
+            "field": "text",
+            "value": ["facebook.com"]           # text search
+          }
+        ]
+      }
+      ```
+  - name: Webhooks
+    description: | 
+      Webhooks are an advanced API feature that allows external applications to receive Axur One events in near real-time, as they happen, 
+      through HTTP or HTTPS. To be able to receive webhook events, the external application must provide an unauthenticated HTTP 
+      or HTTPS endpoint accessible from the Internet.
+      
+      **Important**: In order to protect sensitive information it is recommended to use an HTTPS endpoint with a valid SSL/TLS certificate.
+      
+      These are the published event types:
+      - `ticket.created`
+      - `ticket.reference.updated`
+      - `ticket.threat.detected`
+      - `ticket.threat.quarantine`
+      - `ticket.threat.quarantine.updated`
+      - `ticket.threat.quarantine-exit`
+      - `ticket.threat.discarded`
+      - `ticket.incident.registered`
+      - `ticket.incident.reverted`
+      - `ticket.incident.closed`
+      - `ticket.oneshot.requested`
+      - `ticket.oneshot.notified`
+      - `ticket.oneshot.verified`
+      - `ticket.oneshot.done`
+      - `ticket.oneshot.expired`
+      - `ticket.takedown.requested`
+      - `ticket.takedown.notified`
+      - `ticket.takedown.verified`
+      - `ticket.takedown.done`
+      - `ticket.snapshot.added`
+      - `identity.session.refreshed`
+      - `identity.session.created`
+      - `identity.user.created`
+      - `identity.user.deactivated`
+      - `identity.user.reactivated`
+      
+      # Signature
+      Since the provided endpoint must be freely accessible from the Internet, the external application needs to verify the 
+      authenticity of incoming Axur One requests. The body of every published webhook event is signed using HMAC-SHA256 with a shared secret. 
+      Each webhook subscription has a different randomly generated secret (see *Create subscription* operation, below). The signature's hexadecimal 
+      value is included in the custom HTTP header `X-Axur-Signature`.
+      
+      ## Requests
+      All Webhook requests follow the same contract. Some information available is always present but others are event type specific.
+      
+      Below you can check out some request examples according to some published event types, followed by the description of some particular details of each event:
+      - `ticket.threat.quarantine.updated`: you can see the changes on `quarantine.changes` array. The `oldValue` and `newValue` are optional, but at least one of the two will be filled.
+      ```
+      {
+        "event": {
+          "type": "tickets.test.ticket.threat.quarantine.updated",
+          "date": 1602097280309,
+          "sequence": 1602097271124
+        },
+        "customer": "TEST",
+        "ticket": {
+          "id": 1,
+          "key": "TEST-1",
+          "status": "quarantine",
+          "resolution": "none",
+          "reference": {
+            "url": "https://www.someurl.com.br/drinks/2018/09/drinks-2/"
+          },
+          "creator": {
+            "internal": true
+          }
+        },
+        "detection": {
+          "date": 1587168831043,
+          "source": "GOOGLE WEBSEARCH",
+          "type": "brand-abuse.brand-misuse",
+          "brand": "TDEMO"
+        },
+        "quarantine": {
+          "changes": [
+            {
+              "name": "domtext.md5_hash",
+              "oldValue": "7270cea8aaaafd438e603279cb19e1b2",
+              "newValue": "ffedca58b49d06313e8920cb212b3cc4"
+            }
+          ]
+        }
+      }
+      ```
